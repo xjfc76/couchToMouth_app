@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
 
         // Setup settings button
-        binding.btnSettings.setOnClickListener {
+        binding.fabSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
@@ -239,12 +239,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updatePrinterStatus(connected: Boolean) {
-        runOnUiThread {
-            binding.tvPrinterStatus.text = if (connected) "🖨️ Connected" else "🖨️ Not Connected"
-            binding.tvPrinterStatus.setTextColor(
-                ContextCompat.getColor(this, if (connected) R.color.printer_connected else R.color.printer_disconnected)
-            )
-        }
+        Log.d(TAG, "Printer status: ${if (connected) "Connected" else "Disconnected"}")
     }
 
     /**
