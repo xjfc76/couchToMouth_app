@@ -1,0 +1,7 @@
+{
+  "versionCode": 2,
+  "versionName": "1.1.0",
+  "apkUrl": "https://pos.couchtomouth.com/couch2mouth-bridge-app/releases/couch2mouth-bridge.apk",
+  "releaseNotes": "Added self-update capability - app now checks for updates automatically",
+  "minAndroidSdk": 26
+}

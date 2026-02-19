@@ -1,0 +1,71 @@
+name: Build and Deploy Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Setup Gradle 8.4
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: 8.4
+        cache-disabled: true
+    
+    - name: Build Debug APK
+      run: |
+        gradle wrapper --gradle-version 8.4
+        chmod +x gradlew
+        ./gradlew assembleDebug --no-daemon
+    
+    - name: Get version info
+      id: version
+      run: |
+        VERSION_CODE=$(grep "versionCode" app/build.gradle.kts | head -1 | grep -oP '\d+')
+        VERSION_NAME=$(grep "versionName" app/build.gradle.kts | head -1 | grep -oP '"\K[^"]+')
+        echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_OUTPUT
+        echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION_NAME (code: $VERSION_CODE)"
+    
+    - name: Find and rename APK
+      run: |
+        APK_PATH=$(find app/build/outputs/apk -name "*.apk" -type f | head -1)
+        echo "Found APK at: $APK_PATH"
+        cp "$APK_PATH" couch2mouth-bridge.apk
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.VERSION_NAME }}
+        name: Version ${{ steps.version.outputs.VERSION_NAME }}
+        body: |
+          Automated release from commit ${{ github.sha }}
+          
+          Download the APK below and install on your Android device.
+        files: couch2mouth-bridge.apk
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload APK as artifact (backup)
+      uses: actions/upload-artifact@v4
+      with:
+        name: couch2mouth-bridge-apk
+        path: couch2mouth-bridge.apk
+        retention-days: 30
