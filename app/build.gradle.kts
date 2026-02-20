@@ -11,8 +11,8 @@ android {
         applicationId = "com.couchtommouth.bridge"
         minSdk = 26  // Android 8.0+ (covers Android 14 & 15)
         targetSdk = 34
-        versionCode = 122
-        versionName = "1.2.2"
+        versionCode = 123
+        versionName = "1.2.3"
 
         // Build config fields for easy configuration
         buildConfigField("String", "POS_URL", "\"https://pos.couchtomouth.com/\"")

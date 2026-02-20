@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Primary brand colors -->
-    <color name="primary">#D32F2F</color>
-    <color name="primary_dark">#B71C1C</color>
-    <color name="primary_light">#EF5350</color>
-    <color name="accent">#FFC107</color>
+    <!-- Primary brand colors - CouchToMouth orange/gold -->
+    <color name="primary">#D4A84B</color>
+    <color name="primary_dark">#B8922F</color>
+    <color name="primary_light">#E5C078</color>
+    <color name="accent">#5C4A1F</color>
 
     <!-- Background colors -->
     <color name="background">#FAFAFA</color>
