@@ -189,10 +189,9 @@ class PrinterManager(private val context: Context) {
         val stream = outputStream ?: return
         
         for (line in lines) {
-            // Handle logo
+            // Skip logo for now (bitmap printing can freeze some printers)
             if (line.logo) {
-                stream.write(ESC.ALIGN_CENTER)
-                printLogo()
+                Log.d(TAG, "Skipping logo line (disabled)")
                 continue
             }
             
@@ -239,15 +238,8 @@ class PrinterManager(private val context: Context) {
         
         Log.d(TAG, "Printing legacy receipt: ${receipt.receiptNumber}")
         
-        // Header
+        // Header (logo disabled - was causing printer freeze)
         stream.write(ESC.ALIGN_CENTER)
-        // Try to print logo, but don't fail if it doesn't work
-        try {
-            printLogo()
-            printLine("")
-        } catch (e: Exception) {
-            Log.w(TAG, "Logo print failed, skipping", e)
-        }
         stream.write(ESC.DOUBLE_ON)
         stream.write(ESC.BOLD_ON)
         printLine("CouchToMouth")
