@@ -6,7 +6,10 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
+import com.couchtommouth.bridge.R
 import com.couchtommouth.bridge.config.AppConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -123,26 +126,18 @@ class PrinterManager(private val context: Context) {
             stream.write(ESC.INIT)
             stream.write(ESC.LINE_SPACING_DEFAULT)
 
-            // Header - Shop name (large, centered)
+            // Header - Logo and CouchToMouth branding
             stream.write(ESC.ALIGN_CENTER)
+            
+            // Print the sofa logo
+            printLogo()
+            printLine("")
+            
+            // Print "CouchToMouth" text below logo
             stream.write(ESC.DOUBLE_ON)
             stream.write(ESC.BOLD_ON)
-            printLine(receipt.shopName)
+            printLine("CouchToMouth")
             stream.write(ESC.NORMAL)
-            stream.write(ESC.BOLD_OFF)
-
-            // Address & phone
-            if (receipt.shopAddress.isNotEmpty()) {
-                printLine(receipt.shopAddress)
-            }
-            if (receipt.shopPhone.isNotEmpty()) {
-                printLine(receipt.shopPhone)
-            }
-            printLine("")
-
-            // Receipt title
-            stream.write(ESC.BOLD_ON)
-            printLine("RECEIPT")
             stream.write(ESC.BOLD_OFF)
             printLine("")
 
@@ -168,9 +163,9 @@ class PrinterManager(private val context: Context) {
                 // Modifiers
                 for (modifier in item.modifiers) {
                     val modLine = if (modifier.price > 0 && receipt.showPrices) {
-                        formatLine("  ${modifier.name}: ${modifier.option}", formatPrice(modifier.price))
+                        formatLine("  ${modifier.name} ${modifier.option}", formatPrice(modifier.price))
                     } else {
-                        "  ${modifier.name}: ${modifier.option}"
+                        "  ${modifier.name} ${modifier.option}"
                     }
                     printLine(modLine)
                 }
@@ -300,6 +295,86 @@ class PrinterManager(private val context: Context) {
         // Replace £ with the CP437 byte directly
         val bytes = text.replace("£", "\u009C").toByteArray(Charsets.ISO_8859_1) + byteArrayOf(0x0A)
         outputStream?.write(bytes)
+    }
+
+    /**
+     * Print the Couch to Mouth logo from drawable resources
+     */
+    private fun printLogo() {
+        try {
+            val stream = outputStream ?: return
+            
+            // Load logo from drawable
+            val bitmap = BitmapFactory.decodeResource(context.resources, R.drawable.receipt_logo)
+            if (bitmap == null) {
+                Log.w(TAG, "Could not load receipt_logo")
+                return
+            }
+            
+            // Scale to printer width (max ~384 pixels for 58mm, ~576 for 80mm)
+            val maxWidth = 200  // Keep it reasonable size for receipt
+            val scale = maxWidth.toFloat() / bitmap.width
+            val scaledWidth = maxWidth
+            val scaledHeight = (bitmap.height * scale).toInt()
+            
+            val scaledBitmap = Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
+            
+            // Convert to monochrome and print
+            printBitmap(scaledBitmap)
+            
+            scaledBitmap.recycle()
+            bitmap.recycle()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to print logo", e)
+        }
+    }
+
+    /**
+     * Print a bitmap using ESC/POS raster bit image command
+     */
+    private fun printBitmap(bitmap: Bitmap) {
+        val stream = outputStream ?: return
+        
+        val width = bitmap.width
+        val height = bitmap.height
+        
+        // Width must be multiple of 8
+        val printWidth = (width + 7) / 8 * 8
+        
+        // GS v 0 command: Print raster bit image
+        // Format: GS v 0 m xL xH yL yH d1...dk
+        val xL = (printWidth / 8) and 0xFF
+        val xH = ((printWidth / 8) shr 8) and 0xFF
+        val yL = height and 0xFF
+        val yH = (height shr 8) and 0xFF
+        
+        // Command header
+        stream.write(byteArrayOf(0x1D, 0x76, 0x30, 0x00, xL.toByte(), xH.toByte(), yL.toByte(), yH.toByte()))
+        
+        // Convert bitmap to monochrome bytes
+        for (y in 0 until height) {
+            for (x in 0 until printWidth step 8) {
+                var byte = 0
+                for (bit in 0 until 8) {
+                    val px = x + bit
+                    if (px < width) {
+                        val pixel = bitmap.getPixel(px, y)
+                        // Convert to grayscale and threshold
+                        val gray = (0.299 * ((pixel shr 16) and 0xFF) +
+                                   0.587 * ((pixel shr 8) and 0xFF) +
+                                   0.114 * (pixel and 0xFF)).toInt()
+                        // Dark pixels = 1 (print), light pixels = 0 (no print)
+                        if (gray < 128) {
+                            byte = byte or (0x80 shr bit)
+                        }
+                    }
+                }
+                stream.write(byte)
+            }
+        }
+        
+        stream.flush()
     }
 
     /**
