@@ -121,14 +121,26 @@ class PrinterManager(private val context: Context) {
     suspend fun printReceipt(receipt: ReceiptData) = withContext(Dispatchers.IO) {
         Log.d(TAG, "printReceipt called - useLines=${receipt.useLines}, items=${receipt.items.size}, total=${receipt.total}")
         
-        val stream = outputStream ?: run {
-            Log.e(TAG, "Printer not connected - outputStream is null")
-            return@withContext
+        // Try to reconnect if not connected
+        if (!isConnected()) {
+            Log.w(TAG, "Printer not connected, attempting reconnect...")
+            val savedAddress = config.getSavedPrinterAddress()
+            if (savedAddress != null) {
+                val reconnected = connectToPrinter(savedAddress)
+                if (!reconnected) {
+                    Log.e(TAG, "Failed to reconnect to printer")
+                    throw IOException("Printer disconnected and reconnect failed")
+                }
+                Log.d(TAG, "Reconnected to printer successfully")
+            } else {
+                Log.e(TAG, "No saved printer address for reconnect")
+                throw IOException("Printer not connected and no saved address")
+            }
         }
         
-        if (!isConnected()) {
-            Log.e(TAG, "Printer socket not connected")
-            return@withContext
+        val stream = outputStream ?: run {
+            Log.e(TAG, "Printer not connected - outputStream is null after reconnect attempt")
+            throw IOException("Printer output stream unavailable")
         }
 
         try {
@@ -158,10 +170,12 @@ class PrinterManager(private val context: Context) {
             Log.d(TAG, "Receipt printed successfully - all data sent to printer")
 
         } catch (e: IOException) {
-            Log.e(TAG, "Print failed with IOException", e)
+            Log.e(TAG, "Print failed with IOException: ${e.message}", e)
+            // Connection might be broken, clear it so next attempt reconnects
+            disconnect()
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Print failed with unexpected error", e)
+            Log.e(TAG, "Print failed with unexpected error: ${e.message}", e)
             throw e
         }
     }
