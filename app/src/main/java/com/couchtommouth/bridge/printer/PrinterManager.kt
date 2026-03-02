@@ -155,16 +155,20 @@ class PrinterManager(private val context: Context) {
             }
             printLine("-".repeat(32))
 
-            // Items
+            // Items - conditionally show prices based on showPrices flag
             for (item in receipt.items) {
-                // Item name and price
-                val itemLine = formatLine(item.name, "£${"%.2f".format(item.price)}")
+                // Item name (and price if showPrices is true)
+                val itemLine = if (receipt.showPrices) {
+                    formatLine(item.name, formatPrice(item.price))
+                } else {
+                    item.name  // Kitchen ticket: just the item name
+                }
                 printLine(itemLine)
 
                 // Modifiers
                 for (modifier in item.modifiers) {
-                    val modLine = if (modifier.price > 0) {
-                        formatLine("  ${modifier.name}: ${modifier.option}", "£${"%.2f".format(modifier.price)}")
+                    val modLine = if (modifier.price > 0 && receipt.showPrices) {
+                        formatLine("  ${modifier.name}: ${modifier.option}", formatPrice(modifier.price))
                     } else {
                         "  ${modifier.name}: ${modifier.option}"
                     }
@@ -174,19 +178,22 @@ class PrinterManager(private val context: Context) {
 
             printLine("-".repeat(32))
 
-            // Discount if applicable
-            if (receipt.discount > 0) {
-                val discountLine = formatLine("Discount:", "-£${"%.2f".format(receipt.discount)}")
-                printLine(discountLine)
-            }
+            // Only show discount and total if showPrices is true
+            if (receipt.showPrices) {
+                // Discount if applicable
+                if (receipt.discount > 0) {
+                    val discountLine = formatLine("Discount:", "-${formatPrice(receipt.discount)}")
+                    printLine(discountLine)
+                }
 
-            // Total
-            stream.write(ESC.BOLD_ON)
-            stream.write(ESC.DOUBLE_HEIGHT_ON)
-            val totalLine = formatLine("TOTAL:", "£${"%.2f".format(receipt.total)}")
-            printLine(totalLine)
-            stream.write(ESC.NORMAL)
-            stream.write(ESC.BOLD_OFF)
+                // Total
+                stream.write(ESC.BOLD_ON)
+                stream.write(ESC.DOUBLE_HEIGHT_ON)
+                val totalLine = formatLine("TOTAL:", formatPrice(receipt.total))
+                printLine(totalLine)
+                stream.write(ESC.NORMAL)
+                stream.write(ESC.BOLD_OFF)
+            }
 
             printLine("")
 
@@ -289,7 +296,17 @@ class PrinterManager(private val context: Context) {
     }
 
     private fun printLine(text: String) {
-        outputStream?.write("$text\n".toByteArray(Charsets.UTF_8))
+        // Use CP437 encoding for ESC/POS compatibility (£ = 0x9C in CP437)
+        // Replace £ with the CP437 byte directly
+        val bytes = text.replace("£", "\u009C").toByteArray(Charsets.ISO_8859_1) + byteArrayOf(0x0A)
+        outputStream?.write(bytes)
+    }
+
+    /**
+     * Format price with £ symbol (will be converted to CP437 in printLine)
+     */
+    private fun formatPrice(amount: Double): String {
+        return "£${"%.2f".format(amount)}"
     }
 
     /**

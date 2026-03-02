@@ -64,7 +64,11 @@ data class ReceiptData(
     val authCode: String? = null,
     
     @SerializedName("transaction_id")
-    val transactionId: String? = null
+    val transactionId: String? = null,
+    
+    // Kitchen ticket mode - hides prices when false
+    @SerializedName("show_prices")
+    val showPrices: Boolean = true
 ) {
     companion object {
         private val gson = Gson()
