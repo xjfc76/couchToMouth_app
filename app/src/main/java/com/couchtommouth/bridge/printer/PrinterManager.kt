@@ -113,7 +113,10 @@ class PrinterManager(private val context: Context) {
     }
 
     /**
-     * Print a receipt
+     * Print a receipt using web-controlled lines format.
+     * 
+     * The receipt content is now controlled by JavaScript (print-bridge.js).
+     * Edit that file to change receipt layout - no app rebuild needed!
      */
     suspend fun printReceipt(receipt: ReceiptData) = withContext(Dispatchers.IO) {
         val stream = outputStream ?: run {
@@ -126,122 +129,13 @@ class PrinterManager(private val context: Context) {
             stream.write(ESC.INIT)
             stream.write(ESC.LINE_SPACING_DEFAULT)
 
-            // Header - Logo and CouchToMouth branding
-            stream.write(ESC.ALIGN_CENTER)
-            
-            // Print the sofa logo
-            printLogo()
-            printLine("")
-            
-            // Print "CouchToMouth" text below logo
-            stream.write(ESC.DOUBLE_ON)
-            stream.write(ESC.BOLD_ON)
-            printLine("CouchToMouth")
-            stream.write(ESC.NORMAL)
-            stream.write(ESC.BOLD_OFF)
-            printLine("")
-
-            // Date/time and receipt number
-            stream.write(ESC.ALIGN_LEFT)
-            printLine("Date: ${receipt.dateTime}")
-            printLine("Receipt: ${receipt.receiptNumber}")
-            if (receipt.orderType.isNotEmpty()) {
-                printLine("Order: ${receipt.orderType}")
+            // Use web-controlled lines if available
+            if (receipt.useLines && receipt.lines.isNotEmpty()) {
+                printWebControlledReceipt(receipt.lines)
+            } else {
+                // Fallback to legacy format (for old versions)
+                printLegacyReceipt(receipt)
             }
-            
-            // Customer info - name for collect, name + address for delivery
-            if (receipt.customerName.isNotEmpty()) {
-                printLine("")
-                stream.write(ESC.BOLD_ON)
-                printLine("Customer: ${receipt.customerName}")
-                stream.write(ESC.BOLD_OFF)
-                if (receipt.customerPhone.isNotEmpty()) {
-                    printLine("Phone: ${receipt.customerPhone}")
-                }
-            }
-            
-            // Delivery address (for delivery orders)
-            if (receipt.isDelivery && receipt.deliveryAddress.isNotEmpty()) {
-                printLine("")
-                stream.write(ESC.BOLD_ON)
-                printLine("DELIVER TO:")
-                stream.write(ESC.BOLD_OFF)
-                // Split address by comma and print each part
-                receipt.deliveryAddress.split(",").forEach { part ->
-                    printLine(part.trim())
-                }
-            }
-            
-            printLine("-".repeat(32))
-
-            // Items - conditionally show prices based on showPrices flag
-            for (item in receipt.items) {
-                // Item name (and price if showPrices is true)
-                val itemLine = if (receipt.showPrices) {
-                    formatLine(item.name, formatPrice(item.price))
-                } else {
-                    item.name  // Kitchen ticket: just the item name
-                }
-                printLine(itemLine)
-
-                // Modifiers
-                for (modifier in item.modifiers) {
-                    val modLine = if (modifier.price > 0 && receipt.showPrices) {
-                        formatLine("  ${modifier.name} ${modifier.option}", formatPrice(modifier.price))
-                    } else {
-                        "  ${modifier.name} ${modifier.option}"
-                    }
-                    printLine(modLine)
-                }
-            }
-
-            printLine("-".repeat(32))
-
-            // Only show discount and total if showPrices is true
-            if (receipt.showPrices) {
-                // Discount if applicable
-                if (receipt.discount > 0) {
-                    val discountLine = formatLine("Discount:", "-${formatPrice(receipt.discount)}")
-                    printLine(discountLine)
-                }
-
-                // Total
-                stream.write(ESC.BOLD_ON)
-                stream.write(ESC.DOUBLE_HEIGHT_ON)
-                val totalLine = formatLine("TOTAL:", formatPrice(receipt.total))
-                printLine(totalLine)
-                stream.write(ESC.NORMAL)
-                stream.write(ESC.BOLD_OFF)
-            }
-
-            printLine("")
-
-            // Payment info
-            if (receipt.paymentMethod.isNotEmpty()) {
-                stream.write(ESC.ALIGN_CENTER)
-                printLine("PAYMENT: ${receipt.paymentMethod.uppercase()}")
-
-                // Card details if applicable
-                if (receipt.cardType?.isNotEmpty() == true) {
-                    printLine("${receipt.cardType} ****${receipt.cardLastFour}")
-                    if (receipt.authCode?.isNotEmpty() == true) {
-                        printLine("Auth: ${receipt.authCode}")
-                    }
-                    if (receipt.transactionId?.isNotEmpty() == true) {
-                        printLine("Trans: ${receipt.transactionId}")
-                    }
-                    printLine("")
-                    stream.write(ESC.BOLD_ON)
-                    printLine("APPROVED")
-                    stream.write(ESC.BOLD_OFF)
-                }
-            }
-
-            printLine("")
-
-            // Footer
-            stream.write(ESC.ALIGN_CENTER)
-            printLine("Thank you!")
             printLine("")
 
             // Feed and cut
@@ -257,6 +151,98 @@ class PrinterManager(private val context: Context) {
             Log.e(TAG, "Print failed", e)
             throw e
         }
+    }
+
+    /**
+     * Print receipt using web-controlled lines array.
+     * Each line specifies its own formatting (bold, big, center, price).
+     * Edit print-bridge.js to change receipt layout!
+     */
+    private fun printWebControlledReceipt(lines: List<ReceiptLine>) {
+        val stream = outputStream ?: return
+        
+        for (line in lines) {
+            // Handle logo
+            if (line.logo) {
+                stream.write(ESC.ALIGN_CENTER)
+                printLogo()
+                continue
+            }
+            
+            // Set alignment
+            if (line.center) {
+                stream.write(ESC.ALIGN_CENTER)
+            } else {
+                stream.write(ESC.ALIGN_LEFT)
+            }
+            
+            // Set text size
+            if (line.big) {
+                stream.write(ESC.DOUBLE_ON)
+            } else {
+                stream.write(ESC.NORMAL)
+            }
+            
+            // Set bold
+            if (line.bold) {
+                stream.write(ESC.BOLD_ON)
+            } else {
+                stream.write(ESC.BOLD_OFF)
+            }
+            
+            // Print the line (with price if specified)
+            if (line.price != null) {
+                val priceStr = formatPrice(line.price.toDoubleOrNull() ?: 0.0)
+                printLine(formatLine(line.text, priceStr))
+            } else {
+                printLine(line.text)
+            }
+            
+            // Reset formatting
+            stream.write(ESC.NORMAL)
+            stream.write(ESC.BOLD_OFF)
+        }
+    }
+
+    /**
+     * Legacy receipt printing (for backwards compatibility with old JSON format)
+     */
+    private fun printLegacyReceipt(receipt: ReceiptData) {
+        val stream = outputStream ?: return
+        
+        // Simple legacy format - just print basic info
+        stream.write(ESC.ALIGN_CENTER)
+        printLogo()
+        printLine("")
+        stream.write(ESC.DOUBLE_ON)
+        stream.write(ESC.BOLD_ON)
+        printLine("CouchToMouth")
+        stream.write(ESC.NORMAL)
+        stream.write(ESC.BOLD_OFF)
+        printLine("")
+        
+        stream.write(ESC.ALIGN_LEFT)
+        printLine("Receipt: ${receipt.receiptNumber}")
+        printLine("-".repeat(32))
+        
+        for (item in receipt.items) {
+            if (receipt.showPrices) {
+                printLine(formatLine(item.name, formatPrice(item.price)))
+            } else {
+                printLine(item.name)
+            }
+        }
+        
+        printLine("-".repeat(32))
+        
+        if (receipt.showPrices) {
+            stream.write(ESC.BOLD_ON)
+            printLine(formatLine("TOTAL:", formatPrice(receipt.total)))
+            stream.write(ESC.BOLD_OFF)
+        }
+        
+        stream.write(ESC.ALIGN_CENTER)
+        printLine("Thank you!")
     }
 
     /**

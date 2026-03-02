@@ -1,7 +1,7 @@
 {
-  "versionCode": 127,
-  "versionName": "1.2.7",
-  "apkUrl": "https://github.com/xjfc76/couchToMouth_app/releases/download/v1.2.7/couch2mouth-bridge.apk",
-  "releaseNotes": "Receipts now show customer name and delivery address",
+  "versionCode": 128,
+  "versionName": "1.2.8",
+  "apkUrl": "https://github.com/xjfc76/couchToMouth_app/releases/download/v1.2.8/couch2mouth-bridge.apk",
+  "releaseNotes": "Web-controlled receipts - edit print-bridge.js to change layout, no app rebuild needed!",
   "minAndroidSdk": 26
 }

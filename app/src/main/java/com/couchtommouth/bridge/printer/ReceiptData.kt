@@ -80,7 +80,14 @@ data class ReceiptData(
     
     // Kitchen ticket mode - hides prices when false
     @SerializedName("show_prices")
-    val showPrices: Boolean = true
+    val showPrices: Boolean = true,
+    
+    // Web-controlled receipt lines (new system)
+    @SerializedName("use_lines")
+    val useLines: Boolean = false,
+    
+    @SerializedName("lines")
+    val lines: List<ReceiptLine> = emptyList()
 ) {
     companion object {
         private val gson = Gson()
@@ -122,4 +129,30 @@ data class ReceiptModifier(
     
     @SerializedName("price")
     val price: Double = 0.0
+)
+
+/**
+ * A single line on the receipt (web-controlled formatting)
+ * 
+ * Edit the JavaScript (print-bridge.js) to change receipt layout.
+ * No app rebuild needed after this version!
+ */
+data class ReceiptLine(
+    @SerializedName("text")
+    val text: String = "",
+    
+    @SerializedName("bold")
+    val bold: Boolean = false,
+    
+    @SerializedName("big")
+    val big: Boolean = false,
+    
+    @SerializedName("center")
+    val center: Boolean = false,
+    
+    @SerializedName("price")
+    val price: String? = null,
+    
+    @SerializedName("logo")
+    val logo: Boolean = false
 )
