@@ -26,10 +26,10 @@ jobs:
       with:
         cache-disabled: true
     
-    - name: Build Debug APK
+    - name: Build Release APK
       run: |
         chmod +x gradlew
-        ./gradlew assembleDebug --no-daemon
+        ./gradlew assembleRelease --no-daemon
     
     - name: Get version info
       id: version

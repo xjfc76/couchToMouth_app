@@ -1,7 +1,7 @@
 {
-  "versionCode": 124,
-  "versionName": "1.2.4",
-  "apkUrl": "https://github.com/xjfc76/couchToMouth_app/releases/download/v1.2.4/couch2mouth-bridge.apk",
-  "releaseNotes": "Kitchen ticket printing - hide prices for collect orders, fix £ symbol encoding",
+  "versionCode": 125,
+  "versionName": "1.2.5",
+  "apkUrl": "https://github.com/xjfc76/couchToMouth_app/releases/download/v1.2.5/couch2mouth-bridge.apk",
+  "releaseNotes": "Fix printer reconnect after setup, fix update installation conflicts",
   "minAndroidSdk": 26
 }

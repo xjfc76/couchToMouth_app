@@ -7,12 +7,21 @@ android {
     namespace = "com.couchtommouth.bridge"
     compileSdk = 34
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = "c2mbridge2024"
+            keyAlias = "c2m-release"
+            keyPassword = "c2mbridge2024"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.couchtommouth.bridge"
         minSdk = 26  // Android 8.0+ (covers Android 14 & 15)
         targetSdk = 34
-        versionCode = 124
-        versionName = "1.2.4"
+        versionCode = 125
+        versionName = "1.2.5"
 
         // Build config fields for easy configuration
         buildConfigField("String", "POS_URL", "\"https://pos.couchtomouth.com/\"")
@@ -27,6 +36,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -34,6 +44,7 @@ android {
         }
         debug {
             isDebuggable = true
+            signingConfig = signingConfigs.getByName("release")  // Use same signing for debug too
         }
     }
 

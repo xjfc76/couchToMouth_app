@@ -433,6 +433,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Reconnect to printer when returning from PrinterSetupActivity
+        val savedPrinter = config.getSavedPrinterAddress()
+        if (savedPrinter != null && !printerManager.isConnected()) {
+            scope.launch {
+                val connected = printerManager.connectToPrinter(savedPrinter)
+                Log.d(TAG, "onResume: Printer reconnect = $connected")
+                updatePrinterStatus(connected)
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         scope.cancel()
