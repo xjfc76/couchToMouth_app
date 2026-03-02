@@ -1,7 +1,7 @@
 {
-  "versionCode": 126,
-  "versionName": "1.2.6",
-  "apkUrl": "https://github.com/xjfc76/couchToMouth_app/releases/download/v1.2.6/couch2mouth-bridge.apk",
-  "releaseNotes": "New sofa-only app icon, receipt prints CouchToMouth logo and branding",
+  "versionCode": 127,
+  "versionName": "1.2.7",
+  "apkUrl": "https://github.com/xjfc76/couchToMouth_app/releases/download/v1.2.7/couch2mouth-bridge.apk",
+  "releaseNotes": "Receipts now show customer name and delivery address",
   "minAndroidSdk": 26
 }

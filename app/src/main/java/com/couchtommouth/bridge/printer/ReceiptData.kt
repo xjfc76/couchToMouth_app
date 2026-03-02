@@ -29,6 +29,18 @@ data class ReceiptData(
     @SerializedName("employee")
     val employee: String = "",
     
+    @SerializedName("customer_name")
+    val customerName: String = "",
+    
+    @SerializedName("customer_phone")
+    val customerPhone: String = "",
+    
+    @SerializedName("delivery_address")
+    val deliveryAddress: String = "",
+    
+    @SerializedName("is_delivery")
+    val isDelivery: Boolean = false,
+    
     @SerializedName("items")
     val items: List<ReceiptItem> = emptyList(),
     

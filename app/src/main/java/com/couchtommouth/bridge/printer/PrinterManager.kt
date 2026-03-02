@@ -148,6 +148,30 @@ class PrinterManager(private val context: Context) {
             if (receipt.orderType.isNotEmpty()) {
                 printLine("Order: ${receipt.orderType}")
             }
+            
+            // Customer info - name for collect, name + address for delivery
+            if (receipt.customerName.isNotEmpty()) {
+                printLine("")
+                stream.write(ESC.BOLD_ON)
+                printLine("Customer: ${receipt.customerName}")
+                stream.write(ESC.BOLD_OFF)
+                if (receipt.customerPhone.isNotEmpty()) {
+                    printLine("Phone: ${receipt.customerPhone}")
+                }
+            }
+            
+            // Delivery address (for delivery orders)
+            if (receipt.isDelivery && receipt.deliveryAddress.isNotEmpty()) {
+                printLine("")
+                stream.write(ESC.BOLD_ON)
+                printLine("DELIVER TO:")
+                stream.write(ESC.BOLD_OFF)
+                // Split address by comma and print each part
+                receipt.deliveryAddress.split(",").forEach { part ->
+                    printLine(part.trim())
+                }
+            }
+            
             printLine("-".repeat(32))
 
             // Items - conditionally show prices based on showPrices flag
