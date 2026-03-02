@@ -1,7 +1,7 @@
 {
-  "versionCode": 128,
-  "versionName": "1.2.8",
-  "apkUrl": "https://github.com/xjfc76/couchToMouth_app/releases/download/v1.2.8/couch2mouth-bridge.apk",
-  "releaseNotes": "Web-controlled receipts - edit print-bridge.js to change layout, no app rebuild needed!",
+  "versionCode": 129,
+  "versionName": "1.2.9",
+  "apkUrl": "https://github.com/xjfc76/couchToMouth_app/releases/download/v1.2.9/couch2mouth-bridge.apk",
+  "releaseNotes": "Fixed printing - improved legacy receipt format with customer info and delivery address",
   "minAndroidSdk": 26
 }

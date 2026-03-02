@@ -119,20 +119,30 @@ class PrinterManager(private val context: Context) {
      * Edit that file to change receipt layout - no app rebuild needed!
      */
     suspend fun printReceipt(receipt: ReceiptData) = withContext(Dispatchers.IO) {
+        Log.d(TAG, "printReceipt called - useLines=${receipt.useLines}, items=${receipt.items.size}, total=${receipt.total}")
+        
         val stream = outputStream ?: run {
-            Log.e(TAG, "Printer not connected")
+            Log.e(TAG, "Printer not connected - outputStream is null")
+            return@withContext
+        }
+        
+        if (!isConnected()) {
+            Log.e(TAG, "Printer socket not connected")
             return@withContext
         }
 
         try {
+            Log.d(TAG, "Initializing printer...")
             // Initialize
             stream.write(ESC.INIT)
             stream.write(ESC.LINE_SPACING_DEFAULT)
 
             // Use web-controlled lines if available
             if (receipt.useLines && receipt.lines.isNotEmpty()) {
+                Log.d(TAG, "Using web-controlled format with ${receipt.lines.size} lines")
                 printWebControlledReceipt(receipt.lines)
             } else {
+                Log.d(TAG, "Using legacy format")
                 // Fallback to legacy format (for old versions)
                 printLegacyReceipt(receipt)
             }
@@ -145,10 +155,13 @@ class PrinterManager(private val context: Context) {
             }
 
             stream.flush()
-            Log.d(TAG, "Receipt printed successfully")
+            Log.d(TAG, "Receipt printed successfully - all data sent to printer")
 
         } catch (e: IOException) {
-            Log.e(TAG, "Print failed", e)
+            Log.e(TAG, "Print failed with IOException", e)
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Print failed with unexpected error", e)
             throw e
         }
     }
@@ -210,10 +223,17 @@ class PrinterManager(private val context: Context) {
     private fun printLegacyReceipt(receipt: ReceiptData) {
         val stream = outputStream ?: return
         
-        // Simple legacy format - just print basic info
+        Log.d(TAG, "Printing legacy receipt: ${receipt.receiptNumber}")
+        
+        // Header
         stream.write(ESC.ALIGN_CENTER)
-        printLogo()
-        printLine("")
+        // Try to print logo, but don't fail if it doesn't work
+        try {
+            printLogo()
+            printLine("")
+        } catch (e: Exception) {
+            Log.w(TAG, "Logo print failed, skipping", e)
+        }
         stream.write(ESC.DOUBLE_ON)
         stream.write(ESC.BOLD_ON)
         printLine("CouchToMouth")
@@ -221,28 +241,77 @@ class PrinterManager(private val context: Context) {
         stream.write(ESC.BOLD_OFF)
         printLine("")
         
+        // Order type/info
+        if (receipt.orderType.isNotEmpty()) {
+            stream.write(ESC.BOLD_ON)
+            printLine(receipt.orderType)
+            stream.write(ESC.BOLD_OFF)
+            printLine("")
+        }
+        
+        // Order number and date
         stream.write(ESC.ALIGN_LEFT)
-        printLine("Receipt: ${receipt.receiptNumber}")
+        if (receipt.receiptNumber.isNotEmpty()) {
+            printLine("Order: ${receipt.receiptNumber}")
+        }
+        if (receipt.dateTime.isNotEmpty()) {
+            printLine(receipt.dateTime)
+        }
+        
+        // Customer info
+        if (receipt.customerName.isNotEmpty()) {
+            printLine("Customer: ${receipt.customerName}")
+        }
+        if (receipt.customerPhone.isNotEmpty()) {
+            printLine("Phone: ${receipt.customerPhone}")
+        }
+        
+        // Delivery address
+        if (receipt.isDelivery && receipt.deliveryAddress.isNotEmpty()) {
+            printLine("")
+            printLine("DELIVER TO:")
+            printLine(receipt.deliveryAddress)
+        }
+        
         printLine("-".repeat(32))
         
+        // Items
         for (item in receipt.items) {
             if (receipt.showPrices) {
                 printLine(formatLine(item.name, formatPrice(item.price)))
             } else {
+                stream.write(ESC.BOLD_ON)
                 printLine(item.name)
+                stream.write(ESC.BOLD_OFF)
+            }
+            // Print modifiers
+            for (mod in item.modifiers) {
+                if (mod.name.isNotEmpty()) {
+                    printLine("  - ${mod.name}")
+                }
             }
         }
         
         printLine("-".repeat(32))
         
+        // Total
         if (receipt.showPrices) {
             stream.write(ESC.BOLD_ON)
             printLine(formatLine("TOTAL:", formatPrice(receipt.total)))
             stream.write(ESC.BOLD_OFF)
         }
         
+        // Payment method
+        if (receipt.paymentMethod.isNotEmpty()) {
+            printLine("")
+            printLine("Payment: ${receipt.paymentMethod}")
+        }
+        
         stream.write(ESC.ALIGN_CENTER)
+        printLine("")
         printLine("Thank you!")
+        
+        Log.d(TAG, "Legacy receipt complete")
     }
 
     /**
