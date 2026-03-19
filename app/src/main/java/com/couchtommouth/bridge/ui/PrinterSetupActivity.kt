@@ -132,9 +132,9 @@ class PrinterSetupActivity : AppCompatActivity() {
         
         scope.launch {
             try {
-                // Reconnect if needed
+                // Always reconnect before a test — never trust isConnected() which can be stale
                 val address = config.getSavedPrinterAddress()
-                if (address != null && !printerManager.isConnected()) {
+                if (address != null) {
                     printerManager.connectToPrinter(address)
                 }
                 
@@ -153,9 +153,9 @@ class PrinterSetupActivity : AppCompatActivity() {
         
         scope.launch {
             try {
-                // Reconnect if needed
+                // Always reconnect before a test — never trust isConnected() which can be stale
                 val address = config.getSavedPrinterAddress()
-                if (address != null && !printerManager.isConnected()) {
+                if (address != null) {
                     printerManager.connectToPrinter(address)
                 }
                 
@@ -172,6 +172,9 @@ class PrinterSetupActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         scope.cancel()
+        // Release the Bluetooth socket so MainActivity can reconnect cleanly on resume.
+        // Without this, the socket stays open after testing, blocking MainActivity's reconnect.
+        printerManager.disconnect()
     }
 }
 

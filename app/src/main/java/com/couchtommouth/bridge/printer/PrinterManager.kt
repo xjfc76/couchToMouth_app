@@ -34,8 +34,9 @@ class PrinterManager(private val context: Context) {
     private val bluetoothManager: BluetoothManager? = 
         context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
-    private var socket: BluetoothSocket? = null
-    private var outputStream: OutputStream? = null
+    // @Volatile ensures coroutines on Dispatchers.IO always see the current value
+    @Volatile private var socket: BluetoothSocket? = null
+    @Volatile private var outputStream: OutputStream? = null
     private val config = AppConfig(context)
 
     // ESC/POS Commands
@@ -113,6 +114,20 @@ class PrinterManager(private val context: Context) {
     }
 
     /**
+     * Ensures a live connection exists before any printer operation.
+     * Re-connects using the saved address if the socket is gone or null.
+     * Throws IOException if no address is saved or reconnect fails.
+     */
+    private suspend fun ensureConnected() {
+        if (socket?.isConnected != true || outputStream == null) {
+            val savedAddress = config.getSavedPrinterAddress()
+                ?: throw IOException("No printer configured")
+            val connected = connectToPrinter(savedAddress)
+            if (!connected) throw IOException("Could not connect to printer")
+        }
+    }
+
+    /**
      * Print a receipt using web-controlled lines format.
      * 
      * The receipt content is now controlled by JavaScript (print-bridge.js).
@@ -120,30 +135,11 @@ class PrinterManager(private val context: Context) {
      */
     suspend fun printReceipt(receipt: ReceiptData) = withContext(Dispatchers.IO) {
         Log.d(TAG, "printReceipt called - useLines=${receipt.useLines}, items=${receipt.items.size}, total=${receipt.total}")
-        
-        // Try to reconnect if not connected
-        if (!isConnected()) {
-            Log.w(TAG, "Printer not connected, attempting reconnect...")
-            val savedAddress = config.getSavedPrinterAddress()
-            if (savedAddress != null) {
-                val reconnected = connectToPrinter(savedAddress)
-                if (!reconnected) {
-                    Log.e(TAG, "Failed to reconnect to printer")
-                    throw IOException("Printer disconnected and reconnect failed")
-                }
-                Log.d(TAG, "Reconnected to printer successfully")
-            } else {
-                Log.e(TAG, "No saved printer address for reconnect")
-                throw IOException("Printer not connected and no saved address")
-            }
-        }
-        
-        val stream = outputStream ?: run {
-            Log.e(TAG, "Printer not connected - outputStream is null after reconnect attempt")
-            throw IOException("Printer output stream unavailable")
-        }
 
         try {
+            ensureConnected()
+            val stream = outputStream ?: throw IOException("Printer output stream unavailable")
+
             Log.d(TAG, "Initializing printer...")
             // Initialize
             stream.write(ESC.INIT)
@@ -324,17 +320,17 @@ class PrinterManager(private val context: Context) {
      * Open cash drawer (sends pulse to drawer connected to printer)
      */
     suspend fun openCashDrawer() = withContext(Dispatchers.IO) {
-        val stream = outputStream ?: run {
-            Log.e(TAG, "Printer not connected - cannot open drawer")
-            return@withContext
-        }
-
         try {
+            ensureConnected()
+            val stream = outputStream ?: throw IOException("Output stream unavailable")
             Log.d(TAG, "Opening cash drawer")
             stream.write(ESC.CASH_DRAWER)
             stream.flush()
+            Log.d(TAG, "Cash drawer opened")
         } catch (e: IOException) {
             Log.e(TAG, "Failed to open cash drawer", e)
+            disconnect()
+            throw e
         }
     }
 
@@ -342,9 +338,10 @@ class PrinterManager(private val context: Context) {
      * Print a test page
      */
     suspend fun printTestPage() = withContext(Dispatchers.IO) {
-        val stream = outputStream ?: return@withContext
-
         try {
+            ensureConnected()
+            val stream = outputStream ?: throw IOException("Output stream unavailable")
+
             stream.write(ESC.INIT)
             stream.write(ESC.ALIGN_CENTER)
             stream.write(ESC.DOUBLE_ON)
@@ -372,6 +369,8 @@ class PrinterManager(private val context: Context) {
             stream.flush()
         } catch (e: IOException) {
             Log.e(TAG, "Test print failed", e)
+            disconnect()  // clear the broken socket so next attempt reconnects cleanly
+            throw e       // let caller show the error
         }
     }
 

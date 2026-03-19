@@ -128,6 +128,26 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+        startPrinterHealthCheck()
+    }
+
+    /**
+     * Background coroutine that silently reconnects to the printer if it drops mid-session.
+     * Runs every 30 seconds — staff never need to intervene for brief disconnections.
+     */
+    private fun startPrinterHealthCheck() {
+        scope.launch {
+            while (true) {
+                delay(30_000)
+                val savedPrinter = config.getSavedPrinterAddress()
+                if (savedPrinter != null && !printerManager.isConnected()) {
+                    Log.d(TAG, "Health check: printer disconnected, reconnecting...")
+                    val connected = printerManager.connectToPrinter(savedPrinter)
+                    Log.d(TAG, "Health check reconnect = $connected")
+                    updatePrinterStatus(connected)
+                }
+            }
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -276,7 +296,14 @@ class MainActivity : AppCompatActivity() {
                 // Open cash drawer
                 if (config.hasCashDrawer()) {
                     scope.launch {
-                        printerManager.openCashDrawer()
+                        try {
+                            printerManager.openCashDrawer()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Drawer open failed during cash payment", e)
+                            runOnUiThread {
+                                Toast.makeText(this@MainActivity, "Cash drawer failed — check printer", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                 }
                 
@@ -312,7 +339,14 @@ class MainActivity : AppCompatActivity() {
             
             if (config.hasCashDrawer()) {
                 scope.launch {
-                    printerManager.openCashDrawer()
+                    try {
+                        printerManager.openCashDrawer()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Drawer open failed", e)
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity, "Cash drawer failed — check printer", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             } else {
                 runOnUiThread {
@@ -435,9 +469,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Reconnect to printer when returning from PrinterSetupActivity
+        // Always reconnect on resume — don't rely on isConnected() which returns a cached
+        // value and can be stale (true) after the socket has actually been dropped.
+        // connectToPrinter() calls disconnect() internally before reconnecting, so this is safe.
         val savedPrinter = config.getSavedPrinterAddress()
-        if (savedPrinter != null && !printerManager.isConnected()) {
+        if (savedPrinter != null) {
             scope.launch {
                 val connected = printerManager.connectToPrinter(savedPrinter)
                 Log.d(TAG, "onResume: Printer reconnect = $connected")
